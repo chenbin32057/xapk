@@ -35,6 +35,12 @@
                 <data android:mimeType="application/xapk-package-archive" />
                 <data android:scheme="content" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/vnd.apkm" />
+                <data android:scheme="content" />
+            </intent-filter>
         </activity>
 
         <receiver

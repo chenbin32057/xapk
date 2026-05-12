@@ -168,7 +168,7 @@ public class MainActivity extends AppCompatActivity {
         intent.setType("*/*");
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         // Try to filter for xapk files
-        String[] mimeTypes = {"application/xapk-package-archive", "application/zip", "application/octet-stream"};
+        String[] mimeTypes = {"application/xapk-package-archive", "application/vnd.apkm", "application/zip", "application/octet-stream"};
         intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
         filePickerLauncher.launch(intent);
     }
