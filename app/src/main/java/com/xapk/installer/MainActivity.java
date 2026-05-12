@@ -40,7 +40,6 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipInputStream;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -167,7 +166,6 @@ public class MainActivity extends AppCompatActivity {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        // Try to filter for xapk files
         String[] mimeTypes = {"application/xapk-package-archive", "application/vnd.apkm", "application/zip", "application/octet-stream"};
         intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
         filePickerLauncher.launch(intent);
@@ -182,24 +180,23 @@ public class MainActivity extends AppCompatActivity {
         btnSelect.setEnabled(false);
 
         new Thread(() -> {
+            File tempXapk = null;
             try {
-                // Clean previous extraction
                 deleteRecursive(extractedDir);
                 extractedDir.mkdirs();
 
-                // Copy xapk to cache first (for ZipFile access)
-                File tempXapk = new File(getCacheDir(), "temp.xapk");
-                copyStream(getContentResolver().openInputStream(uri), new FileOutputStream(tempXapk));
+                tempXapk = new File(getCacheDir(), "temp.xapk");
+                try (InputStream is = getContentResolver().openInputStream(uri);
+                     FileOutputStream fos = new FileOutputStream(tempXapk)) {
+                    copyStream(is, fos);
+                }
 
-                // Parse XAPK using ZipFile for reliable access
                 try (ZipFile zipFile = new ZipFile(tempXapk)) {
-                    Enumeration<? extends ZipEntry> entries = zipFile.entries();
                     int totalFiles = zipFile.size();
                     int extracted = 0;
 
                     JSONObject manifest = null;
 
-                    // First pass: find and parse manifest
                     ZipEntry manifestEntry = zipFile.getEntry(MANIFEST_NAME);
                     if (manifestEntry == null) {
                         manifestEntry = zipFile.getEntry("manifest.json");
@@ -219,8 +216,7 @@ public class MainActivity extends AppCompatActivity {
                         appName = manifest.optString("name", "");
                     }
 
-                    // Second pass: extract files
-                    entries = zipFile.entries();
+                    Enumeration<? extends ZipEntry> entries = zipFile.entries();
                     while (entries.hasMoreElements()) {
                         ZipEntry entry = entries.nextElement();
                         if (entry.isDirectory()) continue;
@@ -238,12 +234,12 @@ public class MainActivity extends AppCompatActivity {
                         int progress = (extracted * 100) / totalFiles;
                         String progressText = getString(R.string.extracting, extracted, totalFiles);
 
+                        int finalProgress = progress;
                         runOnUiThread(() -> {
-                            progressBar.setProgress(progress);
+                            progressBar.setProgress(finalProgress);
                             tvProgress.setText(progressText);
                         });
 
-                        // Categorize files
                         String lowerName = name.toLowerCase();
                         String pkgApk = (manifest != null) ? manifest.optString("package_name", "") + ".apk" : "";
                         if (lowerName.equals("base.apk") || (!pkgApk.isEmpty() && !lowerName.contains("config.") && lowerName.equals(pkgApk))) {
@@ -255,30 +251,28 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
 
-                    // If no base.apk found explicitly, use the first APK
                     if (baseApk == null && !splitApks.isEmpty()) {
                         baseApk = splitApks.remove(0);
                     } else if (baseApk == null) {
-                        // Look for any apk
-                        File[] apks = extractedDir.listFiles((dir, n) -> n.endsWith(".apk"));
-                        if (apks != null && apks.length > 0) {
-                            baseApk = apks[0];
-                            for (int i = 1; i < apks.length; i++) {
-                                splitApks.add(apks[i]);
+                        List<File> allApks = findFilesRecursive(extractedDir, ".apk");
+                        if (!allApks.isEmpty()) {
+                            baseApk = allApks.get(0);
+                            for (int i = 1; i < allApks.size(); i++) {
+                                splitApks.add(allApks.get(i));
                             }
                         }
                     }
                 }
 
-                tempXapk.delete();
+                if (tempXapk != null) tempXapk.delete();
 
+                File finalBaseApk = baseApk;
                 runOnUiThread(() -> {
-                    if (baseApk != null && baseApk.exists()) {
-                        // Get app name from APK if not in manifest
-                        if (appName.isEmpty()) {
+                    if (finalBaseApk != null && finalBaseApk.exists()) {
+                        if (appName == null || appName.isEmpty()) {
                             PackageInfo pi = getPackageManager().getPackageArchiveInfo(
-                                    baseApk.getAbsolutePath(), 0);
-                            if (pi != null) {
+                                    finalBaseApk.getAbsolutePath(), PackageManager.GET_META_DATA);
+                            if (pi != null && pi.applicationInfo != null) {
                                 appName = pi.applicationInfo.loadLabel(getPackageManager()).toString();
                                 targetPackage = pi.packageName;
                             }
@@ -287,9 +281,9 @@ public class MainActivity extends AppCompatActivity {
                         tvStatus.setText("已解析 — 准备安装");
                         tvStatus.setTextColor(getColor(R.color.success));
                         tvAppName.setVisibility(View.VISIBLE);
-                        tvAppName.setText(appName.isEmpty() ? "未知应用" : appName);
+                        tvAppName.setText((appName == null || appName.isEmpty()) ? "未知应用" : appName);
                         tvPackageName.setVisibility(View.VISIBLE);
-                        tvPackageName.setText(targetPackage.isEmpty() ? "" : targetPackage);
+                        tvPackageName.setText(targetPackage == null ? "" : targetPackage);
                         progressBar.setVisibility(View.GONE);
                         tvProgress.setVisibility(View.GONE);
                         btnInstall.setVisibility(View.VISIBLE);
@@ -304,13 +298,16 @@ public class MainActivity extends AppCompatActivity {
                 });
 
             } catch (Exception e) {
+                File finalTemp = tempXapk;
+                String errMsg = e.getClass().getSimpleName() + ": " + e.getMessage();
                 runOnUiThread(() -> {
-                    tvStatus.setText("解析失败: " + e.getMessage());
+                    tvStatus.setText("解析失败: " + errMsg);
                     tvStatus.setTextColor(getColor(R.color.error));
                     progressBar.setVisibility(View.GONE);
                     tvProgress.setVisibility(View.GONE);
                     btnSelect.setEnabled(true);
                 });
+                if (finalTemp != null) finalTemp.delete();
             }
         }).start();
     }
@@ -322,22 +319,20 @@ public class MainActivity extends AppCompatActivity {
 
         new Thread(() -> {
             try {
-                // Copy OBB if present
-                if (obbFile != null && obbFile.exists() && !targetPackage.isEmpty()) {
+                if (obbFile != null && obbFile.exists() && targetPackage != null && !targetPackage.isEmpty()) {
                     runOnUiThread(() -> tvStatus.setText(R.string.obb_copying));
                     copyObbFile();
                 }
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && !splitApks.isEmpty()) {
-                    // Use session-based installer for split APKs
                     installWithSession();
                 } else {
-                    // Simple install for single APK
                     runOnUiThread(this::installSingleApk);
                 }
             } catch (Exception e) {
+                String errMsg = e.getClass().getSimpleName() + ": " + e.getMessage();
                 runOnUiThread(() -> {
-                    tvStatus.setText("安装失败: " + e.getMessage());
+                    tvStatus.setText("安装失败: " + errMsg);
                     tvStatus.setTextColor(getColor(R.color.error));
                     btnInstall.setEnabled(true);
                 });
@@ -347,6 +342,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void installSingleApk() {
         try {
+            if (baseApk == null || !baseApk.exists()) {
+                tvStatus.setText("APK 文件不存在");
+                tvStatus.setTextColor(getColor(R.color.error));
+                btnInstall.setEnabled(true);
+                return;
+            }
             Uri apkUri = FileProvider.getUriForFile(this,
                     getPackageName() + ".fileprovider", baseApk);
             Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
@@ -364,31 +365,32 @@ public class MainActivity extends AppCompatActivity {
         PackageManager pm = getPackageManager();
         PackageInstaller installer = pm.getPackageInstaller();
 
-        // Create install session
         PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
                 PackageInstaller.SessionParams.MODE_FULL_INSTALL);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED);
         }
 
-        PackageInstaller.Session session = installer.openSession(installer.createSession(params));
+        int sessionId = installer.createSession(params);
+        PackageInstaller.Session session = installer.openSession(sessionId);
 
-        // Add base APK
-        addApkToSession(session, baseApk, baseApk.getName());
+        try {
+            if (baseApk != null) {
+                addApkToSession(session, baseApk, baseApk.getName());
+            }
+            for (File split : splitApks) {
+                addApkToSession(session, split, split.getName());
+            }
 
-        // Add split APKs
-        for (File split : splitApks) {
-            addApkToSession(session, split, split.getName());
+            Intent callbackIntent = new Intent(this, InstallResultReceiver.class);
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(this,
+                    REQUEST_INSTALL, callbackIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+
+            session.commit(pendingIntent.getIntentSender());
+        } finally {
+            session.close();
         }
-
-        // Create intent for result
-        Intent callbackIntent = new Intent(this, InstallResultReceiver.class);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(this,
-                REQUEST_INSTALL, callbackIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
-
-        session.commit(pendingIntent.getIntentSender());
-        session.close();
 
         runOnUiThread(() -> {
             tvStatus.setText("正在通过系统安装器安装…");
@@ -399,27 +401,30 @@ public class MainActivity extends AppCompatActivity {
     private void addApkToSession(PackageInstaller.Session session, File apkFile, String name) throws Exception {
         try (OutputStream os = session.openWrite(name, 0, apkFile.length());
              FileInputStream fis = new FileInputStream(apkFile)) {
-            byte[] buffer = new byte[8192];
+            byte[] buffer = new byte[65536];
             int len;
             while ((len = fis.read(buffer)) != -1) {
                 os.write(buffer, 0, len);
-                os.flush();
             }
+            os.flush();
             session.fsync(os);
         }
     }
 
     private void copyObbFile() {
         try {
+            if (targetPackage == null) return;
             File obbDir = new File(Environment.getExternalStorageDirectory(),
                     "Android/obb/" + targetPackage);
             if (!obbDir.exists()) {
                 obbDir.mkdirs();
             }
             File destFile = new File(obbDir, obbFile.getName());
-            copyStream(new FileInputStream(obbFile), new FileOutputStream(destFile));
+            try (FileInputStream fis = new FileInputStream(obbFile);
+                 FileOutputStream fos = new FileOutputStream(destFile)) {
+                copyStream(fis, fos);
+            }
         } catch (Exception e) {
-            // Non-fatal
             runOnUiThread(() -> tvProgress.setText("OBB 复制失败: " + e.getMessage()));
         }
     }
@@ -448,15 +453,13 @@ public class MainActivity extends AppCompatActivity {
         progressBar.setProgress(0);
     }
 
-    private void copyStream(InputStream is, FileOutputStream fos) throws Exception {
-        byte[] buffer = new byte[8192];
+    private void copyStream(InputStream is, OutputStream os) throws Exception {
+        byte[] buffer = new byte[65536];
         int len;
         while ((len = is.read(buffer)) != -1) {
-            fos.write(buffer, 0, len);
+            os.write(buffer, 0, len);
         }
-        fos.flush();
-        fos.close();
-        is.close();
+        os.flush();
     }
 
     private static void deleteRecursive(File file) {
@@ -470,5 +473,20 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         file.delete();
+    }
+
+    private static List<File> findFilesRecursive(File dir, String suffix) {
+        List<File> result = new ArrayList<>();
+        if (dir == null || !dir.exists()) return result;
+        File[] files = dir.listFiles();
+        if (files == null) return result;
+        for (File f : files) {
+            if (f.isDirectory()) {
+                result.addAll(findFilesRecursive(f, suffix));
+            } else if (f.getName().toLowerCase().endsWith(suffix)) {
+                result.add(f);
+            }
+        }
+        return result;
     }
 }
