@@ -404,7 +404,7 @@ public class MainActivity extends AppCompatActivity {
                 os.write(buffer, 0, len);
                 os.flush();
             }
-            session.fsync(name);
+            session.fsync(os);
         }
     }
 
