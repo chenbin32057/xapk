@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_light">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/primary"
+        android:titleTextColor="@color/white"
+        android:title="@string/app_name" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center_horizontal">
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/status_ready"
+            android:textSize="16sp"
+            android:textColor="@color/text_primary"
+            android:gravity="center"
+            android:layout_marginBottom="24dp"
+            android:minHeight="48dp" />
+
+        <TextView
+            android:id="@+id/tvAppName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="20sp"
+            android:textColor="@color/text_primary"
+            android:textStyle="bold"
+            android:visibility="gone"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/tvPackageName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:visibility="gone"
+            android:layout_marginBottom="24dp" />
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="8dp"
+            android:max="100"
+            android:progress="0"
+            android:visibility="gone"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:id="@+id/tvProgress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:visibility="gone"
+            android:layout_marginBottom="24dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSelect"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="@string/select_xapk"
+            android:textSize="16sp"
+            android:layout_marginBottom="12dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnInstall"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="@string/installing"
+            android:textSize="16sp"
+            android:visibility="gone"
+            android:enabled="false" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOpen"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="@string/open_app"
+            android:textSize="16sp"
+            android:visibility="gone"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+    </LinearLayout>
+</LinearLayout>

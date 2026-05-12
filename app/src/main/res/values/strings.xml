@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">XAPK 安装器</string>
+    <string name="select_xapk">选择 XAPK 文件</string>
+    <string name="installing">正在安装…</string>
+    <string name="install_success">安装成功</string>
+    <string name="install_failed">安装失败</string>
+    <string name="permission_required">需要存储权限来读取文件</string>
+    <string name="install_permission_required">需要安装未知应用权限</string>
+    <string name="processing">正在解析 XAPK 文件…</string>
+    <string name="extracting">正在提取文件 (%1$d/%2$d)…</string>
+    <string name="status_ready">就绪 — 请选择 XAPK 文件开始安装</string>
+    <string name="no_file_selected">未选择文件</string>
+    <string name="invalid_xapk">无效的 XAPK 文件</string>
+    <string name="obb_copying">正在复制数据文件…</string>
+    <string name="open_app">打开应用</string>
+    <string name="done">完成</string>
+</resources>
