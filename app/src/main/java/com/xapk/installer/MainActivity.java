@@ -245,7 +245,8 @@ public class MainActivity extends AppCompatActivity {
 
                         // Categorize files
                         String lowerName = name.toLowerCase();
-                        if (lowerName.equals("base.apk") || (!lowerName.contains("config.") && lowerName.equals(manifest.optString("package_name", "") + ".apk"))) {
+                        String pkgApk = (manifest != null) ? manifest.optString("package_name", "") + ".apk" : "";
+                        if (lowerName.equals("base.apk") || (!pkgApk.isEmpty() && !lowerName.contains("config.") && lowerName.equals(pkgApk))) {
                             baseApk = outFile;
                         } else if (lowerName.endsWith(".apk")) {
                             splitApks.add(outFile);
